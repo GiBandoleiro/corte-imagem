@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Corte Imagens</title>
+    
+    <!-- JSZip para download em lote --><script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <!-- CSS Embutido (Estilo Glassmorphism) --><style>
+        /* Reset e Configuração Base */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html {
+            height: 100%;
+        }
+
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            min-height: 100%;
+            
+            /* Fundo Escuro com Aurora (para o Glassmorphism) */
+            background-color: #111827; /* Tailwind gray-900 */
+            background-image: 
+                radial-gradient(at 10% 20%, hsla(210, 80%, 40%, 0.3) 0px, transparent 50%),
+                radial-gradient(at 80% 20%, hsla(280, 70%, 50%, 0.3) 0px, transparent 50%),
+                radial-gradient(at 20% 90%, hsla(160, 70%, 40%, 0.3) 0px, transparent 50%),
+                radial-gradient(at 90% 80%, hsla(30, 80%, 50%, 0.3) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: #e5e7eb; /* Tailwind gray-200 */
+            padding: 1rem;
+        }
+
+        /* Estrutura Principal */
+        header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 1rem;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            color: #ffffff;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Seções com Efeito Glassmorphism */
+        section {
+            background-color: rgba(31, 41, 55, 0.6); /* Tailwind gray-800 @ 60% */
+            backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px; /* Mais suave */
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Classes Utilitárias */
+        .hidden {
+            display: none !important;
+        }
+
+        /* Botões */
+        button,
+        .button-like {
+            display: inline-flex; /* Para alinhar ícones */
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem; /* Espaço entre ícone e texto */
+            
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: center;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px; /* Mais suave */
+            padding: 0.75rem 1.25rem;
+            min-height: 44px;
+            min-width: 44px;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        
+        .button-like:hover, button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .button-like:active, button:active {
+            transform: translateY(0);
+            box-shadow: none;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 1. Seção de Upload (Estilo Dropzone) */
+        .upload-label {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2.5rem 1.5rem;
+            border: 2px dashed rgba(255, 255, 255, 0.4); /* Borda tracejada visível */
+            border-radius: 12px;
+            color: #9ca3af; /* Tailwind gray-400 */
+            background-color: transparent; /* Sem fundo */
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+            cursor: pointer;
+        }
+        .upload-label:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.6);
+        }
+        /* Novo estado para Drag & Drop */
+        .upload-label.dragover {
+            background-color: rgba(59, 130, 246, 0.2); /* Fundo 20% */
+            border-color: #3b82f6; /* Borda sólida azul */
+            border-style: solid;
+            color: #ffffff;
+        }
+        
+        .upload-label .svg-icon {
+            width: 3.5rem;
+            height: 3.5rem;
+            margin-bottom: 1rem;
+            color: #9ca3af; /* Cor do ícone */
+            transition: color 0.2s ease;
+        }
+        .upload-label:hover .svg-icon,
+        .upload-label.dragover .svg-icon {
+            color: #ffffff;
+        }
+        #upload-text-main {
+            font-weight: 600;
+            color: #ffffff;
+            font-size: 1.1rem;
+        }
+        #upload-text-sub {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+
+        #file-input {
+            width: 0.1px;
+            height: 0.1px;
+            opacity: 0;
+            overflow: hidden;
+            position: absolute;
+            z-index: -1;
+        }
+        #error-message {
+            color: #f87171; /* Tailwind red-400 */
+            margin-top: 0.5rem;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        /* 2. Galeria de Miniaturas */
+        #thumbnail-container {
+            display: flex;
+            overflow-x: auto;
+            overflow-y: hidden;
+            white-space: nowrap;
+            padding: 0.5rem 0;
+            gap: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .thumbnail {
+            width: 80px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 8px; /* Mais suave */
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+        .thumbnail:hover {
+            transform: scale(1.05);
+        }
+        .thumbnail.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.7);
+        }
+
+        /* 3. Seção do Editor */
+        #editor-image-container {
+            position: relative;
+            max-width: 100%;
+            margin: 0 auto;
+            /* overflow: hidden; */ /* Removido para permitir que a imagem ajuste suas dimensões */
+            background-color: #000000; /* Preto puro para contraste */
+            border-radius: 12px;
+            touch-action: none;
+            /* Não precisamos de display flex ou min-height aqui, pois a imagem agora dita o tamanho */
+            /* overflow: hidden é adicionado dinamicamente via JS após a imagem carregar */
+        }
+        #editor-image {
+            display: block;
+            max-width: 100%;
+            max-height: 70vh;
+            width: 100%; /* A imagem preencherá a largura do seu contêiner */
+            height: auto; /* A altura se ajustará automaticamente */
+            user-select: none;
+            pointer-events: none;
+            /* object-fit: contain; e background-color: #000000; removidos daqui */
+            /* A imagem agora preenche todo o espaço definido pelo JS */
+        }
+
+        /* 3.1 Caixa de Corte (Crop Box) */
+        #crop-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: move;
+            border: 2px dashed rgba(255, 255, 255, 0.7);
+            box-shadow: 0 0 0 2px #3b82f6, 0 0 0 9999px rgba(0, 0, 0, 0.7);
+        }
+
+        /* 3.2 Alças de Redimensionamento (Handles) */
+        .handle {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background-color: #3b82f6;
+            border: 2px solid white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+        .handle::before {
+            content: '';
+            position: absolute;
+            left: -10px; 
+            top: -10px;
+            right: -10px;
+            bottom: -10px;
+            background-color: transparent;
+        }
+        
+        .handle.n, .handle.s { margin-left: -6px; }
+        .handle.w, .handle.e { margin-top: -6px; }
+        .handle.nw, .handle.ne, .handle.sw, .handle.se { margin-left: -6px; margin-top: -6px; }
+
+        .handle.n { top: 0; left: 50%; cursor: ns-resize; margin-top: -6px; }
+        .handle.s { bottom: 0; left: 50%; cursor: ns-resize; margin-bottom: -6px; }
+        .handle.e { top: 50%; right: 0; cursor: ew-resize; margin-right: -6px; }
+        .handle.w { top: 50%; left: 0; cursor: ew-resize; margin-left: -6px; }
+        .handle.nw { top: 0; left: 0; cursor: nwse-resize; }
+        .handle.ne { top: 0; right: 0; cursor: nesw-resize; margin-right: -6px; }
+        .handle.sw { bottom: 0; left: 0; cursor: nesw-resize; margin-bottom: -6px; }
+        .handle.se { bottom: 0; right: 0; cursor: nwse-resize; margin-right: -6px; margin-bottom: -6px; }
+
+        /* 3.3 Linhas de Snap (Centralização) */
+        .snap-line {
+            position: absolute;
+            background-color: rgba(220, 38, 38, 0.8);
+            z-index: 5;
+        }
+        #snap-line-v {
+            width: 1px;
+            height: 100%;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        #snap-line-h {
+            height: 1px;
+            width: 100%;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+
+        /* 4. Seção de Controles */
+        #controls-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #ffffff;
+        }
+        #ratio-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+        /* Botões de proporção (Glass) */
+        .ratio-btn {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: #e5e7eb;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(5px);
+            flex-grow: 1;
+        }
+        .ratio-btn:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+        .ratio-btn.active {
+            background-color: #ffffff;
+            color: #111827; /* Cor do fundo */
+            border-color: #ffffff;
+            font-weight: 700;
+            transform: translateY(0);
+        }
+        
+        /* Botão de Cortar (Ação Primária) */
+        #crop-button {
+            background-color: #10b981; /* Verde (Tailwind emerald-500) */
+            color: white;
+            width: 100%;
+        }
+        #crop-button:hover:not(:disabled) {
+            background-color: #059669;
+        }
+
+        /* Botão Secundário (Batch) */
+        .button-secondary {
+            background-color: #4b5563; /* Tailwind gray-600 */
+            color: white;
+            margin-top: 0.75rem;
+            width: 100%;
+        }
+        .button-secondary:hover:not(:disabled) {
+            background-color: #374151; /* gray-700 */
+        }
+        /* Botão de download em lote (ZIP) */
+        .button-zip-download {
+            background-color: #f97316; /* Tailwind orange-500 */
+        }
+        .button-zip-download:hover:not(:disabled) {
+            background-color: #ea580c; /* orange-600 */
+        }
+
+
+        /* 5. Seção de Resultado */
+        #result-section h2 {
+            margin-bottom: 1rem; /* Espaço para o container */
+        }
+        #result-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        /* Estilo para imagens de resultado (adicionado via JS) */
+        .result-image-preview {
+            max-width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            /* Novo: centraliza e usa fundo preto para evitar bordas brancas */
+            object-fit: contain; /* Ajusta a imagem inteira dentro do seu espaço */
+            background-color: #000000; /* Fundo preto para o espaço não preenchido */
+            height: auto; /* Deixa a altura se ajustar à proporção */
+            max-height: 250px; /* Limita a altura das prévias para não ficarem gigantes */
+        }
+        #save-link {
+            background-color: #3b82f6;
+            color: white;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        #save-link:hover {
+            background-color: #2563eb;
+        }
+
+        /* Canvas de processamento (oculto) */
+        #output-canvas {
+            display: none;
+        }
+
+        /* Ícones SVG (embutidos) */
+        .svg-icon {
+            width: 1.25em;
+            height: 1.25em;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        /* Layout Desktop (Grid) */
+        @media (min-width: 768px) {
+            body {
+                padding: 2rem;
+            }
+            main {
+                max-width: 1200px;
+                margin: 0 auto;
+                display: grid;
+                grid-template-columns: 1fr 320px; /* Sidebar mais larga */
+                grid-template-areas:
+                    "upload upload"
+                    "gallery gallery"
+                    "editor controls"
+                    "editor result";
+                gap: 2rem;
+            }
+            #upload-section { grid-area: upload; }
+            #gallery-section { grid-area: gallery; }
+            #editor-section { 
+                grid-area: editor; 
+                align-self: start; /* Impede que estique */
+            }
+            #controls-section { 
+                grid-area: controls;
+                align-self: start;
+            }
+            #result-section { 
+                grid-area: result;
+                align-self: start;
+            }
+
+            section {
+                margin-bottom: 0;
+            }
+
+            #editor-image {
+                max-height: 80vh;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Corte Imagens</h1>
+    </header>
+
+    <main>
+        <!-- 1. Upload --><section id="upload-section">
+            <input type="file" id="file-input" accept="image/png, image/jpeg" multiple>
+            <!-- Ícone de Upload Modificado (Nuvem) e texto --><label for="file-input" class="upload-label" role="button" aria-controls="file-input">
+                <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                </svg>
+                <span id="upload-text-main">Arraste e solte arquivos aqui</span>
+                <span id="upload-text-sub">ou clique para selecionar</span>
+            </label>
+            <div id="error-message"></div>
+        </section>
+
+        <!-- 2. Galeria de Miniaturas --><section id="gallery-section" class="hidden">
+            <h2>Miniaturas</h2>
+            <div id="thumbnail-container">
+                <!-- Miniaturas serão injetadas aqui --></div>
+        </section>
+
+        <!-- 3. Editor --><section id="editor-section" class="hidden">
+            <div id="editor-image-container">
+                <img id="editor-image" alt="Imagem carregada para edição">
+                
+                <!-- Linhas de Snap (Centralização) --><div id="snap-line-v" class="snap-line hidden"></div>
+                <div id="snap-line-h" class="snap-line hidden"></div>
+
+                <!-- Caixa de Corte (Overlay) --><div id="crop-box">
+                    <div class="handle n" data-handle="n"></div>
+                    <div class="handle s" data-handle="s"></div>
+                    <div class="handle e" data-handle="e"></div>
+                    <div class="handle w" data-handle="w"></div>
+                    <div class="handle nw" data-handle="nw"></div>
+                    <div class="handle ne" data-handle="ne"></div>
+                    <div class="handle sw" data-handle="sw"></div>
+                    <div class="handle se" data-handle="se"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Controles --><section id="controls-section" class="hidden">
+            <label id="controls-label" for="ratio-buttons">Proporção:</label>
+            <div id="ratio-buttons" role="group" aria-labelledby="controls-label">
+                <button class="ratio-btn" data-ratio="9:16">9:16</button>
+                <button class="ratio-btn" data-ratio="4:5">4:5</button>
+                <button class="ratio-btn" data-ratio="19:9">19:9</button> <!-- Corrigido para 16:9 se for o caso -->
+                <button class="ratio-btn" data-ratio="1:1">1:1</button>
+                <button class="ratio-btn active" data-ratio="free">Livre</button>
+            </div>
+            <button id="crop-button" class="button-like">Realizar Corte</button>
+            <!-- Botão de Lote Adicionado --><button id="batch-crop-button" class="button-like button-secondary">Aplicar em Lote (0)</button>
+        </section>
+
+        <!-- 5. Resultado --><section id="result-section" class="hidden">
+            <h2>Resultado</h2>
+            <!-- Container para resultados (single ou batch) --><div id="result-container">
+                <!-- Imagens cortadas aparecerão aqui --></div>
+            <!-- Ícone de Salvar Adicionado --><a id="save-link" href="#" download="imagem-cortada.jpg" class="button-like" role="button">
+                <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span id="save-link-text">Salvar Imagem</span>
+            </a>
+        </section>
+    </main>
+
+    <!-- Canvas de processamento (fora da tela) --><canvas id="output-canvas"></canvas>
+
+    <!-- JavaScript Embutido --><script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- 1. Seleção de Elementos DOM ---
+            const fileInput = document.getElementById('file-input');
+            const uploadLabel = document.querySelector('.upload-label'); // Para Drag/Drop
+            const uploadTextMain = document.getElementById('upload-text-main'); // Para feedback
+            const uploadTextSub = document.getElementById('upload-text-sub'); // Para feedback
+            const errorMessage = document.getElementById('error-message');
+            const gallerySection = document.getElementById('gallery-section');
+            const thumbnailContainer = document.getElementById('thumbnail-container');
+            
+            const editorSection = document.getElementById('editor-section');
+            const editorImageContainer = document.getElementById('editor-image-container');
+            const editorImage = document.getElementById('editor-image');
+            const cropBox = document.getElementById('crop-box');
+            const snapLineV = document.getElementById('snap-line-v');
+            const snapLineH = document.getElementById('snap-line-h');
+
+            const controlsSection = document.getElementById('controls-section');
+            const ratioButtonsContainer = document.getElementById('ratio-buttons');
+            const cropButton = document.getElementById('crop-button');
+            const batchCropButton = document.getElementById('batch-crop-button'); // Novo
+
+            const resultSection = document.getElementById('result-section');
+            const resultContainer = document.getElementById('result-container'); // Novo
+            const saveLink = document.getElementById('save-link');
+            const saveLinkText = document.getElementById('save-link-text'); // Novo
+            const outputCanvas = document.getElementById('output-canvas');
+
+            // --- 2. Estado do Aplicativo ---
+            let uploadedImages = []; // Array para guardar { id, file, objectURL }
+            let activeImageId = null;
+            let currentAspectRatio = null; // null para 'free'
+            let minCropSize = 30; // Tamanho mínimo do corte em pixels
+            let snapThreshold = 5; // Pixels para o "snap" central
+            let lastBatchCropResults = []; // Armazena resultados do último corte em lote
+
+            // Estado da caixa de corte (em pixels da *imagem exibida*)
+            let cropBoxState = { x: 0, y: 0, width: 0, height: 0 };
+            
+            // Estado da interação (arrastar/redimensionar)
+            let interaction = {
+                active: false,
+                type: null, // 'drag' ou 'resize'
+                handle: null, // 'n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'
+                startX: 0,
+                startY: 0,
+                initialBox: {}
+            };
+
+            // Dimensões da imagem (agora são as dimensões *reais* da imagem, não do container)
+            let imageDimensions = {
+                naturalWidth: 0,
+                naturalHeight: 0,
+                scale: 1, // Relação entre o tamanho exibido e o natural
+                rect: {} // Bounding rect da imagem exibida
+            };
+
+            // --- 3. Manipuladores de Eventos Principais ---
+
+            /**
+              * Manipula o envio de novos arquivos (do input).
+              */
+            fileInput.addEventListener('change', (e) => {
+                const files = e.target.files;
+                if (files && files.length > 0) {
+                    handleFiles(files);
+                }
+                // Limpa o valor do input para permitir o re-upload do mesmo arquivo
+                fileInput.value = null;
+            });
+
+            /**
+             * Manipula arquivos de "Arrastar e Soltar" (Drag & Drop)
+             */
+            function setupDragAndDrop() {
+                // Previne o comportamento padrão do navegador
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    document.body.addEventListener(eventName, preventDefaults, false);
+                    uploadLabel.addEventListener(eventName, preventDefaults, false);
+                });
+
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+
+                // Adiciona feedback visual ao arrastar
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    uploadLabel.addEventListener(eventName, () => {
+                        uploadLabel.classList.add('dragover');
+                        uploadTextMain.textContent = "Solte as imagens aqui!";
+                        uploadTextSub.textContent = " ";
+                    }, false);
+                });
+
+                // Remove feedback visual
+                ['dragleave', 'drop'].forEach(eventName => {
+                    uploadLabel.addEventListener(eventName, () => {
+                        uploadLabel.classList.remove('dragover');
+                        uploadTextMain.textContent = "Arraste e solte arquivos aqui";
+                        uploadTextSub.textContent = "ou clique para selecionar";
+                    }, false);
+                });
+
+                // Manipula os arquivos soltos
+                uploadLabel.addEventListener('drop', (e) => {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    if (files && files.length > 0) {
+                        handleFiles(files);
+                    }
+                }, false);
+            }
+            setupDragAndDrop();
+
+            /**
+             * Manipula arquivos colados (Ctrl+V)
+             */
+            window.addEventListener('paste', (e) => {
+                const files = e.clipboardData?.files;
+                if (files && files.length > 0) {
+                    // Previne que a imagem seja colada em outro lugar
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleFiles(files);
+                }
+            });
+
+
+            /**
+             * Processa uma lista de arquivos (File[], vinda de qualquer fonte).
+             */
+            function handleFiles(files) {
+                if (!files || files.length === 0) return;
+
+                // Limpa estado anterior
+                revokeAllObjectUrls();
+                thumbnailContainer.innerHTML = '';
+                uploadedImages = [];
+                activeImageId = null;
+                errorMessage.textContent = '';
+                lastBatchCropResults = []; // Limpa resultados de lote anteriores
+                
+                let validFiles = [];
+
+                for (const file of files) {
+                    // Validação para JPEG e PNG
+                    if (!file.type.startsWith('image/jpeg') && !file.type.startsWith('image/png')) {
+                        errorMessage.textContent = 'Formato não suportado. Use PNG, JPEG ou JPG.';
+                        continue;
+                    }
+
+                    const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
+                    const objectURL = URL.createObjectURL(file);
+                    const imgData = { id, file, objectURL };
+                    
+                    uploadedImages.push(imgData);
+                    validFiles.push(imgData);
+                }
+
+                if (validFiles.length > 0) {
+                    gallerySection.classList.remove('hidden');
+                    validFiles.forEach(imgData => createThumbnail(imgData));
+                    
+                    // Carrega a primeira imagem no editor
+                    loadImageInEditor(validFiles[0].id);
+
+                    // Atualiza contagem do botão de lote
+                    batchCropButton.textContent = `Aplicar em Lote (${uploadedImages.length})`;
+                }
+            }
+
+
+            /**
+             * Manipula o clique em uma miniatura.
+             */
+            thumbnailContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('thumbnail')) {
+                    const id = e.target.dataset.id;
+                    if (id !== activeImageId) {
+                        loadImageInEditor(id);
+                    }
+                }
+            });
+
+            /**
+             * Manipula a seleção de proporção.
+             */
+            ratioButtonsContainer.addEventListener('click', (e) => {
+                const button = e.target.closest('.ratio-btn');
+                if (!button) return;
+
+                // Atualiza UI dos botões
+                ratioButtonsContainer.querySelector('.active')?.classList.remove('active');
+                button.classList.add('active');
+
+                const ratio = button.dataset.ratio;
+                if (ratio === 'free') {
+                    currentAspectRatio = null;
+                } else {
+                    const [w, h] = ratio.split(':').map(Number);
+                    currentAspectRatio = w / h;
+                }
+
+                // Ajusta a caixa de corte para a nova proporção
+                applyAspectRatio();
+                updateCropBoxVisuals();
+            });
+
+            /**
+             * Manipula o clique no botão "Realizar Corte".
+             */
+            cropButton.addEventListener('click', performCrop);
+            batchCropButton.addEventListener('click', performBatchCrop); // Novo
+            saveLink.addEventListener('click', handleSaveClick); // Novo
+
+
+            // --- 4. Funções da Ferramenta de Corte (Interação) ---
+
+            /**
+             * Inicia o arraste ou redimensionamento (MouseDown / TouchStart).
+             */
+            editorImageContainer.addEventListener('mousedown', startInteraction);
+            editorImageContainer.addEventListener('touchstart', startInteraction, { passive: false });
+
+            function startInteraction(e) {
+                if (!activeImageId) return;
+                
+                // Previne scroll em touch
+                if (e.type === 'touchstart') e.preventDefault();
+
+                const target = e.target;
+                const coords = getEventCoords(e);
+                
+                // Salva o retângulo da imagem *no momento da interação*
+                imageDimensions.rect = editorImage.getBoundingClientRect(); // Isso agora pega o rect da imagem *renderizada*
+                imageDimensions.scale = imageDimensions.naturalWidth / imageDimensions.rect.width; // Atualiza a escala
+                
+                interaction.startX = coords.clientX;
+                interaction.startY = coords.clientY;
+                interaction.initialBox = { ...cropBoxState };
+                interaction.active = true;
+
+                if (target.classList.contains('handle')) {
+                    interaction.type = 'resize';
+                    interaction.handle = target.dataset.handle;
+                } else if (target === cropBox) {
+                    interaction.type = 'drag';
+                } else {
+                    interaction.active = false;
+                }
+            }
+
+            /**
+             * Move a caixa ou redimensiona (MouseMove / TouchMove).
+             */
+            window.addEventListener('mousemove', onInteractionMove);
+            window.addEventListener('touchmove', onInteractionMove, { passive: false });
+
+            function onInteractionMove(e) {
+                if (!interaction.active) return;
+                
+                // Previne scroll em touch
+                if (e.type === 'touchmove') e.preventDefault();
+
+                const coords = getEventCoords(e);
+                const dx = coords.clientX - interaction.startX;
+                const dy = coords.clientY - interaction.startY;
+
+                if (interaction.type === 'drag') {
+                    dragCropBox(dx, dy);
+                    checkSnapping();
+                } else if (interaction.type === 'resize') {
+                    resizeCropBox(coords); // Passa as coordenadas atuais do mouse/toque
+                    checkSnapping();
+                }
+
+                updateCropBoxVisuals();
+            }
+
+            /**
+             * Finaliza a interação (MouseUp / TouchEnd).
+             */
+            window.addEventListener('mouseup', endInteraction);
+            window.addEventListener('touchend', endInteraction);
+            window.addEventListener('touchcancel', endInteraction);
+
+            function endInteraction() {
+                interaction.active = false;
+                interaction.type = null;
+                interaction.handle = null;
+                
+                // Esconde as linhas de snap
+                snapLineV.classList.add('hidden');
+                snapLineH.classList.add('hidden');
+            }
+
+            // --- 5. Lógica da Caixa de Corte (Cálculos) ---
+
+            /**
+             * Move a caixa de corte, respeitando os limites.
+             */
+            function dragCropBox(dx, dy) {
+                const { x, y, width, height } = interaction.initialBox;
+                const bounds = imageDimensions.rect;
+
+                let newX = x + dx;
+                let newY = y + dy;
+
+                // Limita ao contêiner da imagem
+                newX = Math.max(0, Math.min(newX, bounds.width - width));
+                newY = Math.max(0, Math.min(newY, bounds.height - height));
+
+                cropBoxState.x = newX;
+                cropBoxState.y = newY;
+            }
+
+            /**
+             * Redimensiona a caixa de corte baseado na alça (handle) e coordenadas do mouse/toque.
+             * LÓGICA REESCRITA para garantir proporção fixa.
+             */
+            function resizeCropBox(coords) {
+                const { x: initialX, y: initialY, width: initialWidth, height: initialHeight } = interaction.initialBox;
+                const bounds = imageDimensions.rect;
+                const handle = interaction.handle;
+                const targetRatio = currentAspectRatio;
+
+                // Coordenadas atuais do mouse relativas à imagem
+                const currentX = Math.max(0, Math.min(coords.clientX - bounds.left, bounds.width));
+                const currentY = Math.max(0, Math.min(coords.clientY - bounds.top, bounds.height));
+
+                let newX = initialX, newY = initialY, newWidth = initialWidth, newHeight = initialHeight;
+
+                // Determinar o ponto fixo oposto à alça
+                const fixedX = handle.includes('w') ? initialX + initialWidth : initialX;
+                const fixedY = handle.includes('n') ? initialY + initialHeight : initialY;
+
+                // Calcular largura/altura ideal baseada na posição do mouse e ponto fixo
+                let idealWidth = handle.includes('w') ? fixedX - currentX : currentX - fixedX;
+                let idealHeight = handle.includes('n') ? fixedY - currentY : currentY - fixedY;
+
+                // Garantir dimensões positivas (caso o mouse cruze o ponto fixo)
+                idealWidth = Math.max(0, idealWidth);
+                idealHeight = Math.max(0, idealHeight);
+
+                // Forçar Proporção (se ativa)
+                if (targetRatio) {
+                    // Decide qual dimensão ajustar para manter a proporção
+                    if (idealWidth / targetRatio > idealHeight) {
+                        // Largura está "sobrando", ajusta altura
+                        idealHeight = idealWidth / targetRatio;
+                    } else {
+                        // Altura está "sobrando" (ou igual), ajusta largura
+                        idealWidth = idealHeight * targetRatio;
+                    }
+                }
+
+                // Ajustar posição X/Y baseado na alça e novas dimensões
+                if (handle.includes('n')) newY = fixedY - idealHeight; else newY = fixedY;
+                if (handle.includes('w')) newX = fixedX - idealWidth; else newX = fixedX;
+                newWidth = idealWidth;
+                newHeight = idealHeight;
+                
+                // Ajustar posição para alças de borda (n, s, e, w)
+                if (targetRatio) { // Só faz sentido se a proporção for fixa
+                    if(handle === 'n' || handle === 's') newX = initialX + (initialWidth - newWidth)/2; // Centraliza horizontalmente
+                    if(handle === 'e' || handle === 'w') newY = initialY + (initialHeight - newHeight)/2; // Centraliza verticalmente
+                }
+
+
+                // Aplicar tamanho mínimo
+                 if (newWidth < minCropSize) {
+                    const diff = minCropSize - newWidth;
+                    newWidth = minCropSize;
+                    if (handle.includes('w')) newX -= diff; // Empurra X de volta
+                    if (targetRatio) {
+                         newHeight = newWidth / targetRatio;
+                        if (handle.includes('n')) newY = fixedY - newHeight; // Recalcula Y baseado no ponto fixo
+                        else newY = fixedY;
+                    }
+                 }
+                 if (newHeight < minCropSize) {
+                    const diff = minCropSize - newHeight;
+                    newHeight = minCropSize;
+                    if (handle.includes('n')) newY -= diff; // Empurra Y de volta
+                     if (targetRatio) {
+                        newWidth = newHeight * targetRatio;
+                        if (handle.includes('w')) newX = fixedX - newWidth; // Recalcula X baseado no ponto fixo
+                        else newX = fixedX;
+                    }
+                 }
+
+                // Aplicar limites da imagem (Bordas)
+                if (newX < 0) {
+                    const diffX = 0 - newX;
+                    newX = 0;
+                    if (targetRatio) {
+                        newWidth -= diffX; // Reduz largura proporcionalmente se saiu pela esquerda
+                        newHeight = newWidth / targetRatio;
+                         if (handle.includes('n')) newY = fixedY - newHeight; else newY = fixedY; // Recalcula Y
+                    } else if (handle.includes('w')) { // Modo livre, saiu pela esquerda
+                       newWidth -=diffX;
+                    }
+                }
+                if (newY < 0) {
+                    const diffY = 0 - newY;
+                    newY = 0;
+                     if (targetRatio) {
+                        newHeight -= diffY; // Reduz altura proporcionalmente se saiu por cima
+                        newWidth = newHeight * targetRatio;
+                        if (handle.includes('w')) newX = fixedX - newWidth; else newX = fixedX; // Recalcula X
+                     } else if(handle.includes('n')) { // Modo livre, saiu por cima
+                        newHeight -= diffY;
+                     }
+                }
+
+                if (newX + newWidth > bounds.width) {
+                    const diffW = (newX + newWidth) - bounds.width;
+                    newWidth -= diffW;
+                    if (targetRatio) {
+                        newHeight = newWidth / targetRatio;
+                        if (handle.includes('n')) newY = fixedY - newHeight; else newY = fixedY; // Recalcula Y
+                    }
+                }
+                if (newY + newHeight > bounds.height) {
+                     const diffH = (newY + newHeight) - bounds.height;
+                    newHeight -= diffH;
+                     if (targetRatio) {
+                        newWidth = newHeight * targetRatio;
+                         if (handle.includes('w')) newX = fixedX - newWidth; else newX = fixedX; // Recalcula X
+                    }
+                }
+                
+                 // Garantir tamanho mínimo novamente após clamp de borda
+                 if (newWidth < minCropSize) newWidth = minCropSize;
+                 if (newHeight < minCropSize) newHeight = minCropSize;
+                 // (Opcional: re-clamp de borda aqui se o min size empurrar para fora de novo)
+                 newX = Math.max(0, Math.min(newX, bounds.width - newWidth));
+                 newY = Math.max(0, Math.min(newY, bounds.height - newHeight));
+
+
+                // Aplica o estado final
+                cropBoxState.x = newX;
+                cropBoxState.y = newY;
+                cropBoxState.width = newWidth;
+                cropBoxState.height = newHeight;
+            }
+
+
+            /**
+             * Ajusta a caixa de corte para a proporção selecionada.
+             */
+            function applyAspectRatio() {
+                if (!currentAspectRatio) return; // Modo Livre
+
+                const bounds = imageDimensions.rect;
+                let { x, y, width, height } = cropBoxState;
+
+                const currentCenter = { x: x + width / 2, y: y + height / 2 };
+
+                let newWidth = width;
+                let newHeight = newWidth / currentAspectRatio;
+
+                if (newHeight > bounds.height) {
+                    newHeight = bounds.height;
+                    newWidth = newHeight * currentAspectRatio;
+                }
+                
+                if (newWidth > bounds.width) {
+                    newWidth = bounds.width;
+                    newHeight = newWidth / currentAspectRatio;
+                }
+
+                // Garante tamanho mínimo após ajustar proporção
+                if (newWidth < minCropSize) {
+                    newWidth = minCropSize;
+                    newHeight = newWidth / currentAspectRatio;
+                }
+                if (newHeight < minCropSize) {
+                    newHeight = minCropSize;
+                    newWidth = newHeight * currentAspectRatio;
+                }
+
+                // Define o novo X/Y baseado no centro antigo e aplica restrições
+                cropBoxState.width = newWidth;
+                cropBoxState.height = newHeight;
+                cropBoxState.x = Math.max(0, Math.min(currentCenter.x - newWidth / 2, bounds.width - newWidth));
+                cropBoxState.y = Math.max(0, Math.min(currentCenter.y - newHeight / 2, bounds.height - newHeight));
+            }
+
+            /**
+             * Verifica e aplica o "snap" central.
+             */
+            function checkSnapping() {
+                const bounds = imageDimensions.rect;
+                const imgCenterX = bounds.width / 2;
+                const imgCenterY = bounds.height / 2;
+                
+                const boxCenterX = cropBoxState.x + cropBoxState.width / 2;
+                const boxCenterY = cropBoxState.y + cropBoxState.height / 2;
+
+                let snappedX = false;
+                let snappedY = false;
+
+                // Snap Vertical
+                if (Math.abs(imgCenterX - boxCenterX) < snapThreshold) {
+                    const deltaX = imgCenterX - boxCenterX;
+                    cropBoxState.x += deltaX; // Aplica o "pulo"
+                    snapLineV.classList.remove('hidden');
+                    snappedX = true;
+                }
+
+                // Snap Horizontal
+                if (Math.abs(imgCenterY - boxCenterY) < snapThreshold) {
+                    const deltaY = imgCenterY - boxCenterY;
+                    cropBoxState.y += deltaY; // Aplica o "pulo"
+                    snapLineH.classList.remove('hidden');
+                    snappedY = true;
+                }
+
+                // Esconde linhas se não estiverem "snapadas"
+                if (!snappedX) snapLineV.classList.add('hidden');
+                if (!snappedY) snapLineH.classList.add('hidden');
+            }
+
+
+            // --- 6. Funções de Carga e Exibição ---
+
+            /**
+             * Cria e exibe uma miniatura na galeria.
+             */
+            function createThumbnail(imgData) {
+                const img = document.createElement('img');
+                img.src = imgData.objectURL;
+                img.classList.add('thumbnail');
+                img.dataset.id = imgData.id;
+                img.alt = `Miniatura de ${imgData.file.name}`;
+                thumbnailContainer.appendChild(img);
+            }
+
+            /**
+             * Carrega a imagem selecionada no editor principal.
+             */
+            function loadImageInEditor(id) {
+                const imgData = uploadedImages.find(img => img.id === id);
+                if (!imgData) return;
+
+                activeImageId = id;
+                
+                // Atualiza UI das miniaturas
+                thumbnailContainer.querySelector('.active')?.classList.remove('active');
+                thumbnailContainer.querySelector(`[data-id="${id}"]`).classList.add('active');
+
+                // Mostra seções relevantes
+                editorSection.classList.remove('hidden');
+                controlsSection.classList.remove('hidden');
+                resultSection.classList.add('hidden'); // Esconde resultado anterior
+
+                // Carrega a imagem
+                editorImage.src = imgData.objectURL;
+                editorImage.onload = () => {
+                    // Ajusta o contêiner da imagem para ter a mesma proporção da imagem
+                    const imgAspectRatio = editorImage.naturalWidth / editorImage.naturalHeight;
+                    const containerWidth = editorImageContainer.clientWidth;
+                    let containerHeight = containerWidth / imgAspectRatio;
+
+                    // Limita a altura máxima para não estourar a tela em mobile ou layout
+                    const maxHeight = window.innerHeight * 0.7; // 70% da altura da viewport
+                    if (containerHeight > maxHeight) {
+                        containerHeight = maxHeight;
+                        // Recalcula a largura se a altura foi limitada
+                        editorImageContainer.style.width = `${containerHeight * imgAspectRatio}px`;
+                    } else {
+                         editorImageContainer.style.width = '100%'; // Garante que use 100% da largura disponível inicialmente
+                    }
+                    editorImageContainer.style.height = `${containerHeight}px`;
+                    editorImageContainer.style.overflow = 'hidden'; // Adiciona overflow hidden dinamicamente
+
+                    // Armazena dimensões para cálculos de corte
+                    imageDimensions.naturalWidth = editorImage.naturalWidth;
+                    imageDimensions.naturalHeight = editorImage.naturalHeight;
+                    imageDimensions.rect = editorImage.getBoundingClientRect(); // Pega o tamanho real renderizado
+                    imageDimensions.scale = editorImage.naturalWidth / imageDimensions.rect.width; // Escala para pixels originais
+                    
+                    // Reseta a caixa de corte
+                    resetCropBox();
+                };
+            }
+
+            /**
+             * Reseta a caixa de corte para o estado inicial (80% centralizado).
+             */
+            function resetCropBox() {
+                const bounds = imageDimensions.rect; // Usa o rect da imagem renderizada
+                const initialWidth = bounds.width * 0.8;
+                const initialHeight = bounds.height * 0.8;
+
+                cropBoxState.width = initialWidth;
+                cropBoxState.height = initialHeight;
+                cropBoxState.x = (bounds.width - initialWidth) / 2;
+                cropBoxState.y = (bounds.height - initialHeight) / 2;
+
+                applyAspectRatio(); // Aplica a proporção atual (se houver)
+                updateCropBoxVisuals();
+            }
+
+            /**
+             * Atualiza a posição e tamanho visual da caixa de corte.
+             */
+            function updateCropBoxVisuals() {
+                cropBox.style.transform = `translate(${cropBoxState.x}px, ${cropBoxState.y}px)`;
+                cropBox.style.width = `${cropBoxState.width}px`;
+                cropBox.style.height = `${cropBoxState.height}px`;
+            }
+
+            /**
+             * Realiza o corte usando Canvas (IMAGEM ÚNICA).
+             */
+            function performCrop() {
+                if (!activeImageId) return;
+
+                const ctx = outputCanvas.getContext('2d');
+                const scale = imageDimensions.scale;
+
+                // Calcula as coordenadas de origem (na imagem original)
+                const sx = cropBoxState.x * scale;
+                const sy = cropBoxState.y * scale;
+                const sWidth = cropBoxState.width * scale;
+                const sHeight = cropBoxState.height * scale;
+
+                // Define o tamanho do canvas para o tamanho do corte
+                outputCanvas.width = sWidth;
+                outputCanvas.height = sHeight;
+
+                // Desenha a seção cortada da imagem no canvas
+                ctx.drawImage(
+                    editorImage,
+                    sx, sy, sWidth, sHeight,
+                    0, 0, sWidth, sHeight
+                );
+
+                // Obtém o Data URL (JPEG com 90% de qualidade)
+                const dataUrl = outputCanvas.toDataURL('image/jpeg', 0.9);
+
+                // Limpa resultados de lote anteriores
+                lastBatchCropResults = []; 
+                const activeFileData = uploadedImages.find(img => img.id === activeImageId);
+                const originalName = activeFileData ? activeFileData.file.name : 'imagem-cortada.jpg';
+                lastBatchCropResults.push({ name: originalName, dataUrl: dataUrl });
+
+
+                // Exibe a prévia
+                displayResults(lastBatchCropResults);
+            }
+
+            /**
+             * Realiza o corte em LOTE.
+             */
+            async function performBatchCrop() {
+                if (!activeImageId || uploadedImages.length === 0) return;
+
+                // 1. Get the crop parameters from the *current* active image
+                const scale = imageDimensions.scale;
+                const cropParams = {
+                    sx: cropBoxState.x * scale,
+                    sy: cropBoxState.y * scale,
+                    sWidth: cropBoxState.width * scale,
+                    sHeight: cropBoxState.height * scale
+                };
+                
+                if (cropParams.sWidth <= 0 || cropParams.sHeight <= 0) {
+                    errorMessage.textContent = "Corte inválido para aplicar em lote.";
+                    return;
+                }
+
+                // Show loading state
+                batchCropButton.textContent = "Processando...";
+                batchCropButton.disabled = true;
+                cropButton.disabled = true;
+                saveLink.disabled = true;
+                errorMessage.textContent = ""; // Clear error
+                resultContainer.innerHTML = ''; // Clear previous results
+
+                const ctx = outputCanvas.getContext('2d');
+                lastBatchCropResults = []; // Limpa resultados de lote anteriores
+
+                // Relative dimensions of the crop box from the active image
+                const relCrop = {
+                    x: cropParams.sx / imageDimensions.naturalWidth,
+                    y: cropParams.sy / imageDimensions.naturalHeight,
+                    w: cropParams.sWidth / imageDimensions.naturalWidth,
+                    h: cropParams.sHeight / imageDimensions.naturalHeight
+                };
+
+                for (const imgData of uploadedImages) {
+                    try {
+                        const img = await loadImageAsync(imgData.objectURL);
+                        
+                        // Apply relative crop to the *new* image's natural dimensions
+                        const newSx = img.naturalWidth * relCrop.x;
+                        const newSy = img.naturalHeight * relCrop.y;
+                        const newSWidth = img.naturalWidth * relCrop.w;
+                        const newSHeight = img.naturalHeight * relCrop.h;
+
+                        // Ensure positive dimensions for drawImage
+                        if (newSWidth <= 0 || newSHeight <= 0) {
+                            console.warn(`Imagem ${imgData.file.name} resultou em corte de 0 ou dimensão negativa. Ignorando.`);
+                            continue;
+                        }
+
+                        // Set canvas to the exact cropped size
+                        outputCanvas.width = newSWidth;
+                        outputCanvas.height = newSHeight;
+                        
+                        ctx.drawImage(
+                            img,
+                            newSx, newSy, newSWidth, newSHeight,
+                            0, 0, newSWidth, newSHeight
+                        );
+                        
+                        // Default to PNG if original was PNG, otherwise JPEG
+                        const outputType = imgData.file.type.includes('png') ? 'image/png' : 'image/jpeg';
+                        const dataUrl = outputCanvas.toDataURL(outputType, 0.9);
+                        lastBatchCropResults.push({ name: imgData.file.name, dataUrl });
+
+                    } catch (error) {
+                        console.error("Erro ao processar imagem em lote:", imgData.file.name, error);
+                        errorMessage.textContent = `Erro ao processar ${imgData.file.name}. Verifique o console.`;
+                    }
+                }
+
+                // Display all results
+                displayResults(lastBatchCropResults);
+
+                // Reset button state
+                batchCropButton.disabled = false;
+                cropButton.disabled = false;
+                saveLink.disabled = false;
+                batchCropButton.textContent = `Aplicar em Lote (${uploadedImages.length})`;
+            }
+
+            /**
+             * Exibe os resultados (seja um único ou um lote).
+             */
+            function displayResults(results) {
+                resultContainer.innerHTML = ''; // Clear previous
+                
+                if (results.length > 0) {
+                    results.forEach((imgData, index) => {
+                        const img = document.createElement('img');
+                        img.src = imgData.dataUrl;
+                        img.alt = `Resultado ${index + 1}: ${imgData.name}`;
+                        img.classList.add('result-image-preview'); // Adiciona a nova classe de estilo
+                        resultContainer.appendChild(img);
+                    });
+                    
+                    if (results.length === 1) {
+                        saveLink.href = results[0].dataUrl;
+                        // Garante que o download use a extensão original ou force jpg
+                        const originalFileName = results[0].name.replace(/\.[^/.]+$/, ''); // Nome sem extensão
+                        const outputExt = results[0].dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'; // Detecta a extensão do dataUrl
+                        saveLink.download = `cortada-${originalFileName}.${outputExt}`;
+                        saveLinkText.textContent = "Salvar Imagem";
+                        saveLink.classList.remove('button-zip-download'); // Remove estilo de ZIP
+                    } else {
+                        // Ativa o download em ZIP
+                        saveLink.removeAttribute('href'); // Remove href direto para ativar o manipulador de clique
+                        saveLink.download = `imagens-cortadas-${Date.now()}.zip`; // Nome do arquivo ZIP
+                        saveLinkText.textContent = `Baixar Todas as Imagens (${results.length}, ZIP)`;
+                        saveLink.classList.add('button-zip-download'); // Adiciona estilo de ZIP
+                    }
+                    resultSection.classList.remove('hidden');
+                    resultSection.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    errorMessage.textContent = "Nenhuma imagem pôde ser processada para exibição.";
+                    resultSection.classList.add('hidden');
+                }
+            }
+
+            /**
+             * Lida com o clique do botão Salvar/Baixar ZIP.
+             */
+            async function handleSaveClick(e) {
+                if (lastBatchCropResults.length > 1) {
+                    e.preventDefault(); // Impede o download padrão do link
+
+                    saveLinkText.textContent = "Gerando ZIP..."; // Atualiza o texto do span
+                    saveLink.disabled = true; // Desabilita o link/botão visualmente
+
+                    const zip = new JSZip();
+                    for (const result of lastBatchCropResults) {
+                        // Extrai a base64 parte do data URL
+                        const base64Data = result.dataUrl.split(';base64,')[1];
+                        const originalFileName = result.name.replace(/\.[^/.]+$/, ''); // Nome sem extensão
+                        const outputExt = result.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg'; // Detecta a extensão do dataUrl
+                        const fileName = `cortada-${originalFileName}.${outputExt}`;
+                        zip.file(fileName, base64Data, { base64: true });
+                    }
+
+                    try {
+                        const content = await zip.generateAsync({ type: "blob" });
+                        const zipUrl = URL.createObjectURL(content);
+                        const a = document.createElement('a');
+                        a.href = zipUrl;
+                        a.download = saveLink.download; // Usa o nome definido no atributo download
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(zipUrl);
+                    } catch (error) {
+                        console.error("Erro ao gerar ZIP:", error);
+                        errorMessage.textContent = "Erro ao gerar arquivo ZIP.";
+                    } finally {
+                        saveLinkText.textContent = `Baixar Todas as Imagens (${lastBatchCropResults.length}, ZIP)`;
+                        saveLink.disabled = false;
+                    }
+                }
+                // Se for apenas uma imagem, o download padrão do link (com href definido em displayResults) funcionará
+            }
+
+
+            // --- 7. Funções Utilitárias ---
+
+            /**
+             * Carrega imagem de forma assíncrona.
+             */
+            function loadImageAsync(url) {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.onerror = (err) => reject(err);
+                    img.src = url;
+                });
+            }
+
+            /**
+             * Limpa URLs de objeto para liberar memória.
+             */
+            function revokeAllObjectUrls() {
+                uploadedImages.forEach(img => URL.revokeObjectURL(img.objectURL));
+            }
+
+            /**
+             * Obtém as coordenadas (clientX/Y) de eventos de mouse ou toque.
+             */
+            function getEventCoords(e) {
+                if (e.touches && e.touches.length > 0) {
+                    return e.touches[0];
+                }
+                return e;
+            }
+        });
+    </script>
+</body>
+</html>
+
